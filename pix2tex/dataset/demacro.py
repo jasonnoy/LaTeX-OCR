@@ -161,7 +161,6 @@ def sub_mods(tex, data):
     for p in pass_patterns:
         if p in pair_dict:
             pair_dict.pop(p)
-    print(pair_dict)
     pattern = list(map(lambda s: '{!r}'.format(s), pair_dict.keys()))
     pattern = [p[1:-1] for p in pattern]
     data = re.sub(
