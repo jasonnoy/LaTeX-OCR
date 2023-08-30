@@ -101,7 +101,7 @@ def unfold(t):
             if i > 0:
                 t = bracket_replace(t)
             t, N = sweep(t, cmds)
-            if time.time()-start > 5: # not optimal. more sophisticated methods didnt work or are slow
+            if time.time()-start > 5:  # not optimal. more sophisticated methods didnt work or are slow
                 raise TimeoutError
             t = undo_bracket_replace(t)
             if N == 0 or i == 9:
@@ -130,7 +130,12 @@ def pydemacro(t: str) -> str:
     Returns:
         str: Document without custom commands
     """
-    return unfold(convert(re.sub('\n+', '\n', re.sub(r'(?<!\\)%.*\n', '\n', t))))
+    s = convert(re.sub('\n+', '\n', re.sub(r'(?<!\\)%.*\n', '\n', t)))
+    s = remove_labels(s)
+    with open("convert_out.tex", 'w') as f:
+        f.write(s)
+    f.close()
+    return s
 
 
 def replace(match):
@@ -159,12 +164,8 @@ def replace(match):
 
 
 def convert(data):
-    data = re.sub(
-        r'((?:\\(?:expandafter|global|long|outer|protected)(?:\s+|\r?\n\s*)?)*)?\\def\s*(\\[a-zA-Z]+)\s*(?:#+([0-9]))*\{',
-        replace,
-        data,
-    )
-    return re.sub(r'\\let[\sĊ]*(\\[a-zA-Z]+)\s*=?[\sĊ]*(\\?\w+)*', r'\\newcommand*{\1}{\2}\n', data)
+    pattern = re.compile('\newcommand{(.+)}{(.+)}')
+    return data
 
 
 def write(path, data):
@@ -173,6 +174,32 @@ def write(path, data):
 
     print('=> File written: {0}'.format(path))
 
-
+import re
+str = r"\newcommand{\be}{\begin{equation}}"
+commands_pattern = r'\\newcommand{(.+?)}{(.*?)}'
+cmds = re.findall(commands_pattern, str)
+result
 if __name__ == '__main__':
-    main()
+    # main()
+    tex = r"""def\half{{\textstyle{1\over2}}}
+\let\la=\label \let\ci=\cite \let\re=\ref
+\let\se=\section \let\sse=\subsection \let\ssse=\subsubsection
+\def\nn{\nonumber} \def\bd{\begin{document}} \def\ed{\end{document}}
+\def\ds{\documentstyle} \let\fr=\frac \let\bl=\bigl \let\br=\bigr
+\let\Br=\Bigr \let\Bl=\Bigl
+\let\bm=\bibitem
+\let\na=\nabla
+\let\pa=\partial \let\ov=\overline
+
+%Kelly's shorthands
+\newcommand{\be}{\begin{equation}}
+\newcommand{\ee}{\end{equation}}
+\newcommand{\bea}{\begin{eqnarray}}
+\newcommand{\eea}{\end{eqnarray}}
+\newcommand{\ba}{\begin{array}}
+\newcommand{\ea}{\end{array}}
+\def\ie{{\it i.e.\ }}
+\def\iec{{\it i.e.,\ }}
+\def\eg{{\it e.g.\ }}
+\def\egc{{\it e.g.,\ }}
+\def\cf{{\it cf.\ }}"""
