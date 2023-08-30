@@ -5,7 +5,7 @@ import re
 import logging
 from collections import Counter
 import time
-from pix2tex.dataset.extract_latex import remove_labels
+from functools import partial
 
 
 class DemacroError(Exception):
@@ -78,46 +78,46 @@ def sweep(t, cmds):
     return t, num_matches
 
 
-def unfold(t):
-    #t = queue.get()
-    t = t.replace('\n', 'Ċ')
-    t = bracket_replace(t)
-    commands_pattern = r'\\(?:re)?newcommand\*?{\\(.+?)}[\sĊ]*(\[\d\])?[\sĊ]*(\[.+?\])?[\sĊ]*{(.*?)}'
-    cmds = re.findall(commands_pattern, t)
-    t = re.sub(r'(?<!\\)'+commands_pattern, 'Ċ', t)
-    cmds = sorted(cmds, key=lambda x: len(x[0]))
-    cmd_names = Counter([c[0] for c in cmds])
-    for i in reversed(range(len(cmds))):
-        if cmd_names[cmds[i][0]] > 1:
-            # something went wrong here. No multiple definitions allowed
-            del cmds[i]
-        elif '\\newcommand' in cmds[i][-1]:
-            logging.debug("Command recognition pattern didn't work properly. %s" % (undo_bracket_replace(cmds[i][-1])))
-            del cmds[i]
-    start = time.time()
-    try:
-        for i in range(10):
-            # check for up to 10 nested commands
-            if i > 0:
-                t = bracket_replace(t)
-            t, N = sweep(t, cmds)
-            if time.time()-start > 5: # not optimal. more sophisticated methods didnt work or are slow
-                raise TimeoutError
-            t = undo_bracket_replace(t)
-            if N == 0 or i == 9:
-                #print("Needed %i iterations to demacro" % (i+1))
-                break
-            elif N > 4000:
-                raise ValueError("Too many matches. Processing would take too long.")
-    except ValueError:
-        pass
-    except TimeoutError:
-        pass
-    except re.error as e:
-        raise DemacroError(e)
-    t = remove_labels(t.replace('Ċ', '\n'))
-    # queue.put(t)
-    return t
+# def unfold(t):
+#     #t = queue.get()
+#     t = t.replace('\n', 'Ċ')
+#     t = bracket_replace(t)
+#     commands_pattern = r'\\(?:re)?newcommand\*?{\\(.+?)}[\sĊ]*(\[\d\])?[\sĊ]*(\[.+?\])?[\sĊ]*{(.*?)}'
+#     cmds = re.findall(commands_pattern, t)
+#     t = re.sub(r'(?<!\\)'+commands_pattern, 'Ċ', t)
+#     cmds = sorted(cmds, key=lambda x: len(x[0]))
+#     cmd_names = Counter([c[0] for c in cmds])
+#     for i in reversed(range(len(cmds))):
+#         if cmd_names[cmds[i][0]] > 1:
+#             # something went wrong here. No multiple definitions allowed
+#             del cmds[i]
+#         elif '\\newcommand' in cmds[i][-1]:
+#             logging.debug("Command recognition pattern didn't work properly. %s" % (undo_bracket_replace(cmds[i][-1])))
+#             del cmds[i]
+#     start = time.time()
+#     try:
+#         for i in range(10):
+#             # check for up to 10 nested commands
+#             if i > 0:
+#                 t = bracket_replace(t)
+#             t, N = sweep(t, cmds)
+#             if time.time()-start > 5: # not optimal. more sophisticated methods didnt work or are slow
+#                 raise TimeoutError
+#             t = undo_bracket_replace(t)
+#             if N == 0 or i == 9:
+#                 #print("Needed %i iterations to demacro" % (i+1))
+#                 break
+#             elif N > 4000:
+#                 raise ValueError("Too many matches. Processing would take too long.")
+#     except ValueError:
+#         pass
+#     except TimeoutError:
+#         pass
+#     except re.error as e:
+#         raise DemacroError(e)
+#     t = remove_labels(t.replace('Ċ', '\n'))
+#     # queue.put(t)
+#     return t
 
 
 def pydemacro(t: str) -> str:
@@ -130,7 +130,8 @@ def pydemacro(t: str) -> str:
     Returns:
         str: Document without custom commands
     """
-    return unfold(convert(re.sub('\n+', '\n', re.sub(r'(?<!\\)%.*\n', '\n', t))))
+    t = re.sub(r'%.*', '', t)
+    return re.sub('\n+', '\n', re.sub(r'(?<!\\)%.*\n', '\n', t))
 
 
 def replace(match):
@@ -138,16 +139,36 @@ def replace(match):
     return result
 
 
-def convert(data):
+def dict_replace(match, dic):
+    return dic[match.group(0)]
+
+
+def sub_mods(tex, data):
     command_pattern = r'\\(?:re)?newcommand{(.+?)}{(.+)}'
     let_pattern = r'\\let(\\[a-zA-Z]+)\s*=(\\?\w+)*'
     def_pattern = r'\\def(\\[a-zA-Z]+){(.+)}'
-    data = re.sub(
+    tex = re.sub(
         r'(\\let|\\def|\\(?:re)?newcommand)',
         replace,
-        data,
+        tex,
     )
-    # return re.sub(r'\\let[\sĊ]*(\\[a-zA-Z]+)\s*=?[\sĊ]*(\\?\w+)*', r'\\newcommand*{\1}{\2}\n', data)
+    command_pairs = re.findall(command_pattern, tex)
+    let_pairs = re.findall(let_pattern, tex)
+    def_pairs = re.findall(def_pattern, tex)
+    all_pairs = command_pairs + let_pairs + def_pairs
+    pair_dict = dict(all_pairs)
+    pass_patterns = [r"\b", r"\be", r"\beg", r"\begi", r"\begin", r"\end", r"\en", r"\e"]
+    for p in pass_patterns:
+        if p in pair_dict:
+            pair_dict.pop(p)
+    print(pair_dict)
+    pattern = list(map(lambda s: '{!r}'.format(s), pair_dict.keys()))
+    pattern = [p[1:-1] for p in pattern]
+    data = re.sub(
+        r'|'.join(pattern),
+        partial(dict_replace, dic=pair_dict),
+        data
+    )
     return data
 
 
@@ -161,21 +182,23 @@ def write(path, data):
 if __name__ == '__main__':
     # main()
     tex = r"""\def\half{{\textstyle{1\over2}}}
+\let\bl=\bigl
+{\bl H}^{-1/4}"""
 
-\let\la=\label \let\ci=\cite \let\re=\ref
-\let\se=\section \let\sse=\subsection \let\ssse=\subsubsection
-\def\nn{\nonumber} \def\bd{\begin{document}} \def\ed{\end{document}}
-\def\ds{\documentstyle} \let\fr=\frac \let\bl=\bigl \let\br=\bigr
-\let\Br=\Bigr \let\Bl=\Bigl
-\let\bm=\bibitem
-\let\na=\nabla
-\let\pa=\partial \let\ov=\overline
-
-%Kelly's shorthands
-\newcommand{\be}{\begin{equation}}
-\newcommand{\ee}{\end{equation}}
-\newcommand{\bea}{\begin{eqnarray}}
-\newcommand{\eea}{\end{eqnarray}}
-\newcommand{\ba}{\begin{array}}
-\newcommand{\ea}{\end{array}}"""
-    print(convert(tex))
+# r"""\let\la=\label \let\ci=\cite \let\re=\ref
+# \let\se=\section \let\sse=\subsection \let\ssse=\subsubsection
+# \def\nn{\nonumber} \def\bd{\begin{document}} \def\ed{\end{document}}
+# \def\ds{\documentstyle} \let\fr=\frac \let\bl=\bigl \let\br=\bigr
+# \let\Br=\Bigr \let\Bl=\Bigl
+# \let\bm=\bibitem
+# \let\na=\nabla
+# \let\pa=\partial \let\ov=\overline
+#
+# %Kelly's shorthands
+# \newcommand{\be}{\begin{equation}}
+# \newcommand{\ee}{\end{equation}}
+# \newcommand{\bea}{\begin{eqnarray}}
+# \newcommand{\eea}{\end{eqnarray}}
+# \newcommand{\ba}{\begin{array}}
+# \newcommand{\ea}{\end{array}}"""
+    print("res:\n", pydemacro(tex))

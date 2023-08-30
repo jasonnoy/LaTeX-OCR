@@ -4,6 +4,7 @@ import os
 import re
 import numpy as np
 from typing import List
+from demacro import sub_mods
 
 MIN_CHARS = 1
 MAX_CHARS = 3000
@@ -99,12 +100,13 @@ def find_math(s: str, wiki=False) -> List[str]:
 
     return clean_matches(matches)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(dest='file', type=str, help='file to find equations in')
-    parser.add_argument('--out','-o', type=str, default=None, help='file to save equations to. If none provided, print all equations.')
-    parser.add_argument('--wiki', action='store_true', help='only look for math starting with \\displaystyle')
-    parser.add_argument('--unescape', action='store_true', help='call `html.unescape` on input')
+    parser.add_argument('--out','-o', type=str, default="test.txt", help='file to save equations to. If none provided, print all equations.')
+    parser.add_argument('--wiki', type=bool, default=False, help='only look for math starting with \\displaystyle')
+    parser.add_argument('--unescape', type=bool, default=False, help='call `html.unescape` on input')
     args = parser.parse_args()
 
     if not os.path.exists(args.file):
@@ -112,9 +114,13 @@ if __name__ == '__main__':
 
     from pix2tex.dataset.demacro import pydemacro
     s = pydemacro(open(args.file, 'r', encoding='utf-8').read())
+    # with open("mid.txt", 'w') as f:
+    #     f.write(s)
     if args.unescape:
         s = html.unescape(s)
     math = '\n'.join(sorted(find_math(s, args.wiki)))
+    math = remove_labels(math)
+    math = sub_mods(s, math)
     if args.out is None:
         print(math)
     else:
