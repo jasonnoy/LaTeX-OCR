@@ -134,37 +134,21 @@ def pydemacro(t: str) -> str:
 
 
 def replace(match):
-    prefix = match.group(1)
-    if (
-            prefix is not None and
-            (
-                'expandafter' in prefix or
-                'global' in prefix or
-                'outer' in prefix or
-                'protected' in prefix
-            )
-    ):
-        return match.group(0)
-
-    result = r'\newcommand'
-    if prefix is None or 'long' not in prefix:
-        result += '*'
-
-    result += '{' + match.group(2) + '}'
-    if match.lastindex == 3:
-        result += '[' + match.group(3) + ']'
-
-    result += '{'
+    result = '\n' + match.group(0)
     return result
 
 
 def convert(data):
+    command_pattern = r'\\(?:re)?newcommand{(.+?)}{(.+)}'
+    let_pattern = r'\\let(\\[a-zA-Z]+)\s*=(\\?\w+)*'
+    def_pattern = r'\\def(\\[a-zA-Z]+){(.+)}'
     data = re.sub(
-        r'((?:\\(?:expandafter|global|long|outer|protected)(?:\s+|\r?\n\s*)?)*)?\\def\s*(\\[a-zA-Z]+)\s*(?:#+([0-9]))*\{',
+        r'(\\let|\\def|\\(?:re)?newcommand)',
         replace,
         data,
     )
-    return re.sub(r'\\let[\sĊ]*(\\[a-zA-Z]+)\s*=?[\sĊ]*(\\?\w+)*', r'\\newcommand*{\1}{\2}\n', data)
+    # return re.sub(r'\\let[\sĊ]*(\\[a-zA-Z]+)\s*=?[\sĊ]*(\\?\w+)*', r'\\newcommand*{\1}{\2}\n', data)
+    return data
 
 
 def write(path, data):
@@ -175,4 +159,23 @@ def write(path, data):
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    tex = r"""\def\half{{\textstyle{1\over2}}}
+
+\let\la=\label \let\ci=\cite \let\re=\ref
+\let\se=\section \let\sse=\subsection \let\ssse=\subsubsection
+\def\nn{\nonumber} \def\bd{\begin{document}} \def\ed{\end{document}}
+\def\ds{\documentstyle} \let\fr=\frac \let\bl=\bigl \let\br=\bigr
+\let\Br=\Bigr \let\Bl=\Bigl
+\let\bm=\bibitem
+\let\na=\nabla
+\let\pa=\partial \let\ov=\overline
+
+%Kelly's shorthands
+\newcommand{\be}{\begin{equation}}
+\newcommand{\ee}{\end{equation}}
+\newcommand{\bea}{\begin{eqnarray}}
+\newcommand{\eea}{\end{eqnarray}}
+\newcommand{\ba}{\begin{array}}
+\newcommand{\ea}{\end{array}}"""
+    print(convert(tex))
