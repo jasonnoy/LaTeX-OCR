@@ -159,6 +159,7 @@ def extract_formula_from_tex(filepath, wiki=False) -> List[str]:
     math = remove_labels(math)
     math = sub_mods(s, math)
     equations = math.split('\n')
+    equations = [e for e in equations if e != '']
     return equations
 
 

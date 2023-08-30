@@ -140,7 +140,9 @@ def replace(match):
 
 
 def dict_replace(match, dic):
-    return dic[match.group(0)]
+    if match.group(0) in dic:
+        return dic[match.group(0)]
+    return match.group(0)
 
 
 def sub_mods(tex, data):
