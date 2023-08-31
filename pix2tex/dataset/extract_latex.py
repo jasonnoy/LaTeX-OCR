@@ -154,7 +154,7 @@ def extract_formula_from_tex(filepath, wiki=False) -> List[str]:
     """
 
     from pix2tex.dataset.demacro import pydemacro
-    s = pydemacro(open(filepath, 'r', encoding='utf-8').read())
+    s = pydemacro(open(filepath, 'r', encoding='utf-8', errors='ignore').read())
     math = '\n'.join(sorted(find_math(s, wiki)))
     math = remove_labels(math)
     math = sub_mods(s, math)
@@ -195,6 +195,7 @@ if __name__ == '__main__':
 
     print(f"rank{rank} starting task, file num: {len(select_dirs)}")
     # count = 0
+    error_count = 0
     with open(output_path, 'w', 1, encoding='utf-8') as f:
         for select_dir in tqdm(select_dirs):
             # if count < 23220:
@@ -224,9 +225,14 @@ if __name__ == '__main__':
                     f.write("\n")
                 except TimeoutError:
                     print("timeout:", tex_file)
+                    error_count += 1
+                    pass
+                except Exception as e:
+                    error_count += 1
                     pass
             # count += 1
     f.close()
+    print(f"rank {rank}, error count:{error_count}")
 
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser()
