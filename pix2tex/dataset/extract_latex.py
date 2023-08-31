@@ -172,6 +172,7 @@ def split_list_by_n(origin_list, n):
 
 # print(extract_formula_from_tex('brane_grav_taxonomy.tex'))
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--local_rank', type=int, default=0)
@@ -190,7 +191,11 @@ if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f"rank_{rank}.txt")
 
-    divided_dirs = split_list_by_n(os.listdir(input_dir), args.world_size)
+    with open("/nxchinamobile2/shared/img_datasets/math_ocr/AMiner/" + f"{subject}_dirs.txt", 'r') as f:
+        dirs = f.readlines()
+        dirs = [dir.strip() for dir in dirs]
+
+    divided_dirs = split_list_by_n(dirs, args.world_size)
     select_dirs = divided_dirs[rank]
 
     print(f"rank{rank} starting task, file num: {len(select_dirs)}")

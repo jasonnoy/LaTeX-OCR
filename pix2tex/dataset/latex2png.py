@@ -291,6 +291,8 @@ if __name__ == '__main__':
     parser.add_argument('--world_size', type=int, default=1)
     parser.add_argument('--rank', type=int, default=0)
     parser.add_argument('--add_aug', type=bool, default=True)
+    parser.add_argument('--debug', type=bool, default=False)
+
     args = parser.parse_args()
 
     tar_index = 0
@@ -318,19 +320,22 @@ if __name__ == '__main__':
                 except Exception as e:
                     error_count += 1
                     continue
-                aug_imgs[0].save(f"./test/{count}.jpg")
+                if args.debug:
+                    aug_imgs[0].save(f"./test/{count}.jpg")
                 count += 1
                 continue
             texes.append(line)
             if len(texes) >= 10 or random.random() < 0.15:
-                # try:
-                aug_imgs, tex_str = process_texes(texes, use_xelatex=True)
-                # except Exception as e:
-                #     error_count += 1
-                #     continue
+                try:
+                    aug_imgs, tex_str = process_texes(texes, use_xelatex=True)
+                except Exception as e:
+                    error_count += 1
+                    continue
 
-                assert len(aug_imgs) == 0
+                assert len(aug_imgs) == 1
                 aug_img = aug_imgs[0]
+                if args.debug:
+                    aug_img.save(f"./test/{count}.jpg")
                 texes = []
 
                 # 将PIL图像转换为字节
@@ -351,15 +356,17 @@ if __name__ == '__main__':
                 })
 
                 count += 1
+                if error_count/count > 0.25:
+                    print(f"Warning: more than 25% of images failed to process. ({error_count}/{count})")
                 # 如果达到10,000个样本，分割.tar文件
                 if count % 10000 == 0:
                     sink.close()
                     tar_index += 1
                     tar_path = os.path.join(args.save_dir, "%06d.tar" % tar_index)
                     sink = wds.TarWriter(tar_path)
-                    print(f'rank {args.rank} finish {tar_path}.', flush=True)
+                    print(f'rank {args.rank} finish {tar_path} error count: {error_count}.', flush=True)
     if count % 10000 != 0:
         sink.close()
         tar_index += 1
         tar_path = os.path.join(args.save_dir, "%06d.tar" % tar_index)
-        print(f'rank {args.rank} finish {tar_path}.', flush=True)
+        print(f'rank {args.rank} finish {tar_path} error count: {error_count}.', flush=True)

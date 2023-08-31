@@ -2,10 +2,10 @@
 #SBATCH --job-name=extract_math
 #SBATCH --output=./logs/extract_math%j.out
 #SBATCH --error=./logs/extract_math%j.err
-#SBATCH --nodes=2
+#SBATCH --nodes=4
 #SBATCH --ntasks-per-node=16
 #SBATCH --cpus-per-task=3
-#SBATCH --exclude=g0001
+#SBATCH --exclude=g00[01,04-05]
 #SBATCH --partition=dev
 #SBATCH --export=ALL
 
