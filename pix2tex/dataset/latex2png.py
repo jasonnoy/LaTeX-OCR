@@ -192,7 +192,7 @@ def matplot_lex2pil(text, size=64, color=(0.1, 0.1, 0.1), out=None, **kwds):
     r, g, b = r * color[0], g * color[1], b * color[2]
 
     im = np.dstack((r, g, b, a)).astype(np.uint8)
-    im = Image.fromarray(im)
+    im = Image.fromarray(im).convert('RGB')
 
     if out:
         im.save(out)
@@ -424,10 +424,10 @@ def preprocess_line(string):
     return string
 
 
-@retry(delay=0.1)
+# @retry(delay=0.1)
 def convert_pil_to_bytes(aug_img):
     byte_io = BytesIO()
-    aug_img.save(byte_io, format='JPEG')
+    aug_img.save(byte_io, format='RGB')
     return byte_io.getvalue()
 
 
@@ -436,7 +436,7 @@ if __name__ == '__main__':
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--world_size', type=int, default=1)
     parser.add_argument('--rank', type=int, default=0)
-    parser.add_argument('--batch_size', type=int, default=100, help="num of pages per xelatex compilation")
+    parser.add_argument('--batch_size', type=int, default=1, help="num of pages per xelatex compilation")
     parser.add_argument('--add_aug', type=bool, default=True)
     parser.add_argument('--debug', action='store_true')
 
@@ -500,9 +500,11 @@ if __name__ == '__main__':
                     lines.set_postfix(count=count, invalid_count=invalid_count, error_count=error_count)
                     continue
 
+                batch = []
+
                 for pil_img, tex_str in zip(pil_imgs, tex_strs):
                     if args.debug:
-                        pil_img.save(f"./test/{count}.png")
+                        pil_img.save(f"./test/{count}.jpg")
                     # 将PIL图像转换为字节
                     img_bytes = convert_pil_to_bytes(pil_img)
                     # 将图像和文本保存到webdataset中
