@@ -20,5 +20,5 @@ LOCAL_RANK=${SLURM_LOCALID:-0}
 
 echo "RUN on `hostname`, CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES, RANK=$RANK, LOCAL_RANK=$LOCAL_RANK, WORLD_SIZE=$WORLD_SIZE"
 
-python pix2tex/dataset/latex2png.py --world_size $WORLD_SIZE --rank $RANK --local_rank $LOCAL_RANK
+python pix2tex/dataset/latex2png.py --world_size $WORLD_SIZE --rank $RANK --local_rank $LOCAL_RANK --batch_size 1 --debug
 echo "DONE on `hostname`, RANK=$RANK"

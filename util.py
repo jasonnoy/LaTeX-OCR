@@ -37,7 +37,7 @@ def filter_and_save():
                     grand_texes.add(line)
     print("total texes:", len(grand_texes))
     grand_texes = list(grand_texes)
-    splited_texes = split_list_by_n(grand_texes, 100)
+    splited_texes = split_list_by_n(grand_texes, 2016)
 
     print("start writing to file...")
     process_list = []
@@ -45,7 +45,7 @@ def filter_and_save():
         p = Process(target=write_to_file, args=(texes, i))
         p.start()
         process_list.append(p)
-        if len(process_list) >= 32:
+        if len(process_list) >= 128:
             for p in process_list:
                 p.join()
             process_list = []

@@ -1,14 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=extract_math
-#SBATCH --output=./logs/extract_math%j.out
-#SBATCH --error=./logs/extract_math%j.err
-#SBATCH --nodes=4
-#SBATCH --ntasks-per-node=16
-#SBATCH --cpus-per-task=3
-#SBATCH --exclude=g00[01,04-05]
+#SBATCH --job-name=math_ocr
+#SBATCH --output=./logs/math_ocr%j.out
+#SBATCH --error=./logs/math_ocr%j.err
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=2
 #SBATCH --partition=dev
 #SBATCH --export=ALL
 
-srun extract_tex.sh
+srun build_webdataset.sh
 
 echo "Done with job $SLURM_JOB_ID"

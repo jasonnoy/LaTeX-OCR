@@ -287,7 +287,7 @@ if __name__ == '__main__':
                 # 将PIL图像转换为字节
                 byte_io = BytesIO()
                 if args.add_aug:
-                    save_quality = int(45 + random.random()*40)
+                    save_quality = int(60 + random.random()*40)
                 else:
                     save_quality = 75
                 # print("save quality=", save_quality)
