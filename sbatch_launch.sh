@@ -2,12 +2,14 @@
 #SBATCH --job-name=math_ocr
 #SBATCH --output=./logs/math_ocr%j.out
 #SBATCH --error=./logs/math_ocr%j.err
-#SBATCH --nodes=1
+#SBATCH --gres=gpu:0
+#SBATCH --nodes=5
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=55
+#SBATCH --exclude=g0001
 #SBATCH --partition=dev
 #SBATCH --export=ALL
 
-srun build_webdataset.sh
+srun parallel_latex.sh
 
 echo "Done with job $SLURM_JOB_ID"

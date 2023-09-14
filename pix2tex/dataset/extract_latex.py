@@ -1,5 +1,5 @@
 import html
-from demacro import sub_mods
+from .demacro import sub_mods
 import argparse
 from tqdm import tqdm
 import math
@@ -142,19 +142,23 @@ def find_math(s: str, wiki=False) -> List[str]:
 
 
 @timeout(3)
-def extract_formula_from_tex(filepath, wiki=False) -> List[str]:
+def extract_formula_from_tex(filepath, wiki=False, str_input=False) -> List[str]:
     r"""Extract all equations from a Latex-like document.
 
     Args:
         filepath (str): Path to the file to extract equations from
         wiki (bool, optional): Search for `\displaystyle` as it can be found in the wikipedia page source code. Defaults to False.
+        str_input: input string instead of filepath
 
     Returns:
         List[str]: List of all found mathematical expressions
     """
 
     from pix2tex.dataset.demacro import pydemacro
-    s = pydemacro(open(filepath, 'r', encoding='utf-8', errors='ignore').read())
+    if str_input:
+        s = filepath
+    else:
+        s = pydemacro(open(filepath, 'r', encoding='utf-8', errors='ignore').read())
     math = '\n'.join(sorted(find_math(s, wiki)))
     math = remove_labels(math)
     math = sub_mods(s, math)

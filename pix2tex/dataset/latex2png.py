@@ -1,3 +1,4 @@
+import math
 from retry import retry
 import argparse
 import glob
@@ -158,13 +159,13 @@ def tex2png(eq, **kwargs):
     return __cache[eq]
 
 
-def matplot_lex2pil(text, size=64, color=(0.1, 0.1, 0.1), out=None, **kwds):
+def matplot_lex2pil(text, size=64, out=None, **kwds):
     """LaTex数学公式转图片
 
         text        - 文本字符串，其中数学公式须包含在两个$符号之间
         size        - 字号，整型，默认64
-        color       - 颜色，浮点型三元组，值域范围[0,1]，默认深黑色
         out         - 文件名，仅支持后缀名为.png的文件名。若维None，则返回PIL图像对象
+        color_path  - 颜色文件 默认从中随机
         kwds        - 关键字参数
                         dpi         - 输出分辨率（每英寸像素数），默认72
                         family      - 系统支持的字体，None表示当前默认的字体
@@ -173,44 +174,47 @@ def matplot_lex2pil(text, size=64, color=(0.1, 0.1, 0.1), out=None, **kwds):
 
     assert out is None or os.path.splitext(out)[1].lower() == '.png', '仅支持后缀名为.png的文件名'
 
-    for key in kwds:
-        if key not in ['dpi', 'family', 'weight']:
-            raise KeyError('不支持的关键字参数：%s' % key)
-
     dpi = kwds.get('dpi', 72)
-    family = kwds.get('family', None)
-    weight = kwds.get('weight', 'normal')
 
+    families = ['sans-serif', 'serif', 'cursive', 'fantasy', 'monospace']
+    family = random.choice(families)
+    math_families = ['dejavusans', 'dejavuserif', 'cm', 'stix', 'stixsans', 'custom']
+    math_family = random.choice(math_families)
+    weights = ['ultralight', 'light', 'normal', 'regular', 'book', 'medium', 'roman', 'semibold', 'demibold', 'demi', 'bold', 'heavy', 'extra bold', 'black']
+    weight = random.choice(weights)
+    # 50%几率黑色，50%几率其他随机颜色
+    if random.random() < 0.5:
+        color = 'black'
+    else:
+        colors = ['tab:blue', 'tab:grey', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:cyan', 'tab:olive']
+        # with open(color_path, 'r') as f:
+        #     colors = f.read().splitlines()
+        color = random.choice(colors)
     bfo = BytesIO()  # 创建二进制的类文件对象
-    prop = mfm.FontProperties(family=family, size=size, weight=weight)
-    mathtext.math_to_image(text, bfo, prop=prop, dpi=dpi)
-    im = Image.open(bfo)
-
-    r, g, b, a = im.split()
-    r, g, b = 255 - np.array(r), 255 - np.array(g), 255 - np.array(b)
-    a = r / 3 + g / 3 + b / 3
-    r, g, b = r * color[0], g * color[1], b * color[2]
-
-    im = np.dstack((r, g, b, a)).astype(np.uint8)
-    im = Image.fromarray(im).convert('RGB')
+    prop = mfm.FontProperties(family=family, math_fontfamily=math_family, size=size, weight=weight)
+    mathtext.math_to_image(text, bfo, prop=prop, dpi=dpi, color=color)
+    im = Image.open(bfo).convert('RGB')
+    w, h = im.size
+    if w * h == 0 or w / h >= 50:
+        # print(f"invalid image text: {text}")
+        if kwds.get('debug'):
+            raise Exception(f"invalid image text: {text}")
+        raise Exception(f"invalid image text")
 
     if out:
         im.save(out)
     return im
 
 
-def tex2pil(tex_texts, return_error_index=False, use_xelatex=False, **kwargs):
+def tex2pil(tex_text, use_xelatex=False, **kwargs):
     if use_xelatex:
-        pngs, error_index = Latex(tex_texts, **kwargs).write(return_bytes=True)
-        images = [Image.open(io.BytesIO(d)).convert('RGB') for d in pngs]
-
+        pngs, error_index = Latex([tex_text], **kwargs).write(return_bytes=True)
+        image = Image.open(io.BytesIO(pngs[0])).convert('RGB')
     else:
-        tex = tex_texts[0]
-        png = matplot_lex2pil(tex)
-        images = [png]
+        image = matplot_lex2pil(tex_text, **kwargs)
         error_index = None
 
-    return (images, error_index) if return_error_index else images
+    return image, error_index
 
 
 def extract(text, expression=None):
@@ -243,18 +247,6 @@ def formula2img(str_latex, out_file, img_size=(5, 3), font_size=16):
 
 
 def formula2pil(str_latex, img_size=(10, 1), font_size=16):
-    from PIL import Image
-
-    def fig2img(fig):
-        '''
-        matplotlib.figure.Figure转为PIL image
-        '''
-        fig.canvas.draw()
-        w, h = fig.canvas.get_width_height()
-        # 将Image.frombytes替换为Image.frombuffer,图像会倒置
-        img = Image.frombytes('RGB', (w, h), fig.canvas.tostring_rgb())
-        return img
-
     fig = plt.figure(figsize=img_size)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.get_xaxis().set_visible(False)
@@ -333,7 +325,7 @@ def process_single_tex(tex):
     tex = tex.replace("&", "")
     if "{align" in tex:
         tex = tex.replace(r"\begin{align}", "").replace(r"\end{align}", "").replace(r"\begin{aligned}",
-                                                                                            "").replace(
+                                                                                    "").replace(
             r"\end{aligned}", "").replace(r"\begin{align*}", "").replace(r"\end{align*}", "")
     if "{gather" in tex:
         tex = tex.replace(r"\begin{gather}", "").replace(r"\end{gather}", "")
@@ -361,9 +353,8 @@ def process_batch_tex(batch_texes, format_base, base_format):
     return tex_strs, res_tex_strs
 
 
-def process_tex(tex, format_base, base_format):
+def process_tex(tex, base_str, base_format):
     tex = process_single_tex(tex)
-    base_str = format_base[base_format]
     if base_format == "equation":
         if random.random() < 0.5:
             nonumber = r"\nonumber"
@@ -376,12 +367,13 @@ def process_tex(tex, format_base, base_format):
 
 
 def process_texes(tex, base_format="random", use_xelatex=False, **kwargs):
-    tex = tex[0][0]
-    format_base = {"equation": r"\begin{equation} \begin{aligned} %s \end{aligned} %s \end{equation}",
-                   "displaymath": r"\begin{displaymath} \begin{aligned} %s \end{aligned} \end{displaymath}",
-                   "normal": r"$%s$"}
-    if base_format == "random":
-        base_format = random.choice(list(format_base.keys()))
+    # format_base = {"equation": r"\begin{equation} \begin{aligned} %s \end{aligned} %s \end{equation}",
+    #                "displaymath": r"\begin{displaymath} \begin{aligned} %s \end{aligned} \end{displaymath}",
+    #                "normal": r"$%s$"}
+    # if base_format == "random":
+    #     base_format = random.choice(list(format_base.keys()))
+
+    format_base = r"$%s$"
 
     # tex_lines, res_tex_strs = process_batch_tex(batch_texes, format_base, base_format)
     tex_line, res_tex_str = process_tex(tex, format_base, base_format)
@@ -406,12 +398,14 @@ def process_texes(tex, base_format="random", use_xelatex=False, **kwargs):
                   r'\usepackage{txfonts}',
                   ]
 
-    # aug_imgs = tex2pil_with_augment(tex_str, use_xelatex=use_xelatex, fonts=math_fonts)
-    pil_imgs = tex2pil([tex_line], fonts=math_fonts, use_xelatex=use_xelatex, **kwargs)
-    return pil_imgs, [res_tex_str]
+    pil_img, error_no = tex2pil(tex_line, fonts=math_fonts, use_xelatex=use_xelatex, **kwargs)
+
+    return pil_img, res_tex_str
 
 
 def check_validity(tex_str):
+    if tex_str == "":
+        return False
     if not is_str_close(tex_str):
         return False
     if re.match(r"[A-Za-z\s]+$", tex_str):
@@ -424,11 +418,20 @@ def preprocess_line(string):
     return string
 
 
-# @retry(delay=0.1)
+@retry(delay=0.1, tries=10)
 def convert_pil_to_bytes(aug_img):
     byte_io = BytesIO()
-    aug_img.save(byte_io, format='RGB')
+    aug_img.save(byte_io, format='JPEG')
     return byte_io.getvalue()
+
+
+def split_list_by_n(origin_list, n):
+    origin_list.sort()
+    step = math.ceil(len(origin_list) / n)
+    res = []
+    for i in range(0, len(origin_list), step):
+        res.append(origin_list[i:i + step])
+    return res
 
 
 if __name__ == '__main__':
@@ -437,94 +440,119 @@ if __name__ == '__main__':
     parser.add_argument('--world_size', type=int, default=1)
     parser.add_argument('--rank', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=1, help="num of pages per xelatex compilation")
-    parser.add_argument('--add_aug', type=bool, default=True)
+    parser.add_argument('--math_type', type=str, default="short", help='choose from short, long')
     parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--save_image', action='store_true')
 
     args = parser.parse_args()
 
     if args.debug:
         print("=================debug mode=================")
+    if args.save_image:
+        print("=================save image mode=================")
 
-    tar_index = 0
-    save_dir = os.path.join("/nxchinamobile2/shared/img_datasets/math_ocr/aminer_math", 'part-%03d' % args.rank)
-    os.makedirs(save_dir, exist_ok=True)
-    tar_path = os.path.join(save_dir, "%06d.tar" % tar_index)
-    input_path = "/nxchinamobile2/shared/img_datasets/math_ocr/AMiner/all_parts_new"
-    # input_file_path = os.path.join(input_path, f"part_{args.rank}.txt")
-    input_file_path = os.path.join(input_path, "part_1717.txt")
-    sink = wds.TarWriter(tar_path)
+    input_path = "/nxchinamobile2/shared/img_datasets/math_ocr/AMiner/all_parts_new_new"
+    all_parts = range(672)
+    divided_parts = split_list_by_n(all_parts, args.world_size)
+    selected_parts = divided_parts[args.rank]
 
-    texes = []
-    batch = []
-    count = 0
-    error_count = 0
-    invalid_count = 0
+    for part in selected_parts:
+        print(f"rank {args.rank} processing part {part}...")
 
-    with open(input_file_path, "r") as f:
-        lines = tqdm(f.readlines())
-        for line in lines:
-            line = line.strip()
-            if not check_validity(line):
-                invalid_count += 1
-                lines.set_description(f'rank {args.rank}')
-                lines.set_postfix(count=count, invalid_count=invalid_count, error_count=error_count)
-                continue
-            line = preprocess_line(line)
+        total = 0
+        total_error = 0
+        tar_index = 0
+        input_file_path = os.path.join(input_path, f"part_{part}.txt")
+        save_dir = os.path.join(f"/nxchinamobile2/shared/img_datasets/math_ocr/aminer_math_{args.math_type}", 'part-%03d' % part)
+        os.makedirs(save_dir, exist_ok=True)
+        tar_path = os.path.join(save_dir, "%06d.tar" % tar_index)
+        sink = wds.TarWriter(tar_path)
 
-            if r"\\" in line:
-                batch.append([line])
+        count = 0
+        error_count = 0
+        invalid_count = 0
+
+        with open(input_file_path, "r") as f:
+            if args.debug or args.math_type == 'long':
+                lines = tqdm(f.readlines())
             else:
-                texes.append(line)
-                if len(texes) >= 1 or random.random() < 0.15:
-                    batch.append(texes)
-                    texes = []
-
-            if len(batch) >= args.batch_size:
-                if args.debug:
-                    pil_imgs, tex_strs = process_texes(batch, use_xelatex=False, debug=args.debug,
-                                                       batch_size=args.batch_size)
-                else:
-                    try:
-                        pil_imgs, tex_strs = process_texes(batch, use_xelatex=False, debug=args.debug,
-                                                           batch_size=args.batch_size)
-                    except Exception as e:
-                        error_count += len(batch)
+                lines = f.readlines()
+            for line in lines:
+                line = line.strip()
+                if not check_validity(line):
+                    invalid_count += 1
+                    if args.debug or args.math_type == 'long':
                         lines.set_description(f'rank {args.rank}')
                         lines.set_postfix(count=count, invalid_count=invalid_count, error_count=error_count)
+                    continue
+                line = preprocess_line(line)
+
+                if r"\\" in line:
+                    use_xelatex = True
+                    if args.math_type == "short":
+                        continue
+                else:
+                    use_xelatex = False
+                    if args.math_type == "long":
                         continue
 
-                if len(pil_imgs) != len(batch):
-                    print(f"rank: {args.rank}, batch error")
-                    error_count += len(batch)
-                    lines.set_description(f'rank {args.rank}')
-                    lines.set_postfix(count=count, invalid_count=invalid_count, error_count=error_count)
-                    continue
+                if args.debug:
+                    pil_img, tex_str = process_texes(line, use_xelatex=use_xelatex, debug=args.debug,
+                                                     batch_size=args.batch_size)
+                else:
+                    try:
+                        pil_img, tex_str = process_texes(line, use_xelatex=use_xelatex, debug=args.debug,
+                                                         batch_size=args.batch_size)
+                    except Exception as e:
+                        error_count += 1
+                        if args.debug or args.math_type == 'long':
+                            lines.set_description(f'rank {args.rank}')
+                            lines.set_postfix(count=count, invalid_count=invalid_count, error_count=error_count)
+                        continue
 
-                batch = []
-
-                for pil_img, tex_str in zip(pil_imgs, tex_strs):
-                    if args.debug:
-                        pil_img.save(f"./test/{count}.jpg")
-                    # 将PIL图像转换为字节
+                if args.debug or args.save_image:
+                    pil_img.save(f"./test/{count}.jpg")
+                # 将PIL图像转换为字节
+                try:
                     img_bytes = convert_pil_to_bytes(pil_img)
                     # 将图像和文本保存到webdataset中
                     key = "%03d%07d" % (args.rank, count)
-                    sink.write({
+                    tar_content = {
                         "__key__": key,
-                        "jpg": img_bytes,
+                        "png": img_bytes,
                         "txt": tex_str,
-                    })
-                    count += 1
+                    }
+                    if args.debug:
+                        print(f"count {count}, content:{tar_content}")
+
+                    sink.write(tar_content)
+                except Exception as e:
+                    error_count += 1
+                    print(f'image convert error, part{part}, line:{line}')
+                    pil_img.save(f"./test/{count}.jpg")
+                    if args.debug or args.math_type == 'long':
+                        lines.set_description(f'rank {args.rank}')
+                        lines.set_postfix(count=count, invalid_count=invalid_count, error_count=error_count)
+                    continue
+                count += 1
+                if args.debug or args.math_type == 'long':
                     lines.set_description(f'rank {args.rank}')
                     lines.set_postfix(count=count, invalid_count=invalid_count, error_count=error_count)
-                    if count % 10000 == 0:
-                        sink.close()
-                        tar_index += 1
-                        tar_path = os.path.join(args.save_dir, "%06d.tar" % tar_index)
-                        sink = wds.TarWriter(tar_path)
-                        print(f'rank {args.rank} finish {tar_path} error count: {error_count}.', flush=True)
-    if count % 10000 != 0:
-        sink.close()
-        tar_index += 1
-        tar_path = os.path.join(args.save_dir, "%06d.tar" % tar_index)
-        print(f'rank {args.rank} finish {tar_path} error count: {error_count}.', flush=True)
+                if count % 10000 == 0:
+                    sink.close()
+                    print(f'rank {args.rank} finish {tar_path}.', flush=True)
+                    tar_index += 1
+                    tar_path = os.path.join(save_dir, "%06d.tar" % tar_index)
+                    sink = wds.TarWriter(tar_path)
+        total_error += error_count
+        error_count = 0
+        if count % 10000 != 0:
+            sink.close()
+            print(f'rank {args.rank} finish {tar_path}.', flush=True)
+            tar_index += 1
+            tar_path = os.path.join(save_dir, "%06d.tar" % tar_index)
+
+        total += count
+        with open(os.path.join(save_dir,  'stat.txt'), 'w') as f:
+            f.write(f'total: {total}, error: {total_error}')
+        f.close()
